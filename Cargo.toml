@@ -10,3 +10,7 @@ edition = "2018"
 rustfft = "5"
 rodio = "0.13"
 itertools = "0.10"
+
+[dev-dependencies]
+paw = "1.0"
+structopt = { version = "0.3", features = [ "paw" ] }

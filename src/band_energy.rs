@@ -63,25 +63,13 @@ pub struct Calculator<const N: usize, const BINSIZE: usize> {
 }
 
 impl<const N: usize, const BINSIZE: usize> Calculator<N, BINSIZE> {
-    // pub fn process(&mut self, samples: &[i16]) -> [f32; N] {
-    //     // TODO enable when supported by compiler
-    //     // let samples: [Complex32; BINSIZE] = samples.iter()
-    //     //     .map(|re| Complex32::new(*re as f32, 0f32))
-    //     //     .collect();
-    //     let mut buffer = [Complex32::new(0f32, 0f32); BINSIZE];
-    //     for (int, complex) in samples.iter().zip(buffer.iter_mut()) {
-    //         let float = *int as f32;
-    //         *complex = Complex32::new(float, 0f32);
-    //     }
-    //     self.process_inner(buffer)
-    // }
-    pub fn process_iter<'a,T>(&mut self, samples: T) -> [f32; N] 
+    pub fn process<'a,T>(&mut self, samples: T) -> [f32; N] 
         where
             T: IntoIterator<Item=i16>,
     {
 
         // TODO enable when supported by compiler
-        // let samples: [Complex32; BINSIZE] = samples.iter()
+        // let samples: [Complex32; BINSIZE] = samples.into_iter()
         //     .map(|re| Complex32::new(*re as f32, 0f32))
         //     .collect();
         let mut buffer = [Complex32::new(0f32, 0f32); BINSIZE];
@@ -129,7 +117,7 @@ mod tests {
         
         let bands = [0..100];
         let energies = Builder::<N, BINSIZE>::new(bands, sample_rate)
-            .build().process_iter(samples);
+            .build().process(samples);
 
         dbg!(energies);
     }
