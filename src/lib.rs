@@ -1,3 +1,2 @@
-mod band_energies;
+pub mod band_energy;
 
-pub use band_energies::Builder;

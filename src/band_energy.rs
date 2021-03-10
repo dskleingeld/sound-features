@@ -29,7 +29,7 @@ pub struct Builder<const N: usize, const BINSIZE: usize> {
 }
 
 impl<const N: usize, const BINSIZE: usize> Builder<N, BINSIZE> {
-    fn new(freq_bands: [FreqBand; N], sample_rate: u32) -> Self { //TODO get binsize in via const new
+    pub fn new(freq_bands: [FreqBand; N], sample_rate: u32) -> Self { //TODO get binsize in via const new
         let mut bands = [IndexBand::default(); N]; // impossible no Copy allowed on range 
         for (band, freq_band) in bands.iter_mut().zip(freq_bands.iter()) {
             *band = IndexBand::from(freq_band, sample_rate, BINSIZE);
@@ -41,7 +41,7 @@ impl<const N: usize, const BINSIZE: usize> Builder<N, BINSIZE> {
             sample_rate,
         }
     }
-    fn build(&mut self) -> Calculator<N, BINSIZE> {
+    pub fn build(&mut self) -> Calculator<N, BINSIZE> {
         let fft = self.planner.plan_fft_forward(BINSIZE);
         let len = fft.get_inplace_scratch_len();
         let scratch= vec![Complex32::default(); len];
@@ -63,16 +63,35 @@ pub struct Calculator<const N: usize, const BINSIZE: usize> {
 }
 
 impl<const N: usize, const BINSIZE: usize> Calculator<N, BINSIZE> {
-    fn process(&mut self, samples: &[i16]) -> [f32; N] {
+    // pub fn process(&mut self, samples: &[i16]) -> [f32; N] {
+    //     // TODO enable when supported by compiler
+    //     // let samples: [Complex32; BINSIZE] = samples.iter()
+    //     //     .map(|re| Complex32::new(*re as f32, 0f32))
+    //     //     .collect();
+    //     let mut buffer = [Complex32::new(0f32, 0f32); BINSIZE];
+    //     for (int, complex) in samples.iter().zip(buffer.iter_mut()) {
+    //         let float = *int as f32;
+    //         *complex = Complex32::new(float, 0f32);
+    //     }
+    //     self.process_inner(buffer)
+    // }
+    pub fn process_iter<'a,T>(&mut self, samples: T) -> [f32; N] 
+        where
+            T: IntoIterator<Item=i16>,
+    {
+
         // TODO enable when supported by compiler
         // let samples: [Complex32; BINSIZE] = samples.iter()
         //     .map(|re| Complex32::new(*re as f32, 0f32))
         //     .collect();
         let mut buffer = [Complex32::new(0f32, 0f32); BINSIZE];
-        for (int, complex) in samples.iter().zip(buffer.iter_mut()) {
-            let float = *int as f32;
+        for (int, complex) in samples.into_iter().zip(buffer.iter_mut()) {
+            let float = int as f32;
             *complex = Complex32::new(float, 0f32);
         }
+        self.process_inner(buffer)
+    }
+    fn process_inner(&mut self, mut buffer: [Complex32; BINSIZE]) -> [f32; N] {
         self.fft.process_with_scratch(&mut buffer, &mut self.scratch);
         let fft = buffer;
         
@@ -92,7 +111,6 @@ impl<const N: usize, const BINSIZE: usize> Calculator<N, BINSIZE> {
 mod tests {
     use super::*;
 
-
     #[test]
     fn sine() {
         use std::f32::consts::PI;
@@ -111,30 +129,8 @@ mod tests {
         
         let bands = [0..100];
         let energies = Builder::<N, BINSIZE>::new(bands, sample_rate)
-            .build().process(&samples);
+            .build().process_iter(samples);
 
         dbg!(energies);
-    }
-
-    #[test]
-    fn piano() {
-        use rodio::{Decoder, Source};
-        use itertools::Itertools;
-        use std::io::prelude::*;
-        use std::io::BufReader;
-        use std::fs::File;
-
-        let f = File::open("data/piano.wav").unwrap();
-        let mut reader = BufReader::new(f);
-        let decoder = Decoder::new(reader).unwrap();
-
-        let bands = [0..1000, 1..2000];
-        let eng = Builder::<2, 512>::new(bands, decoder.sample_rate())
-            .build();
-
-        let chunks = &decoder.chunks(512);
-        let energies: Vec<_> = chunks.into_iter()
-            .map(|chunk| eng.process(chunk))
-            .collect();
     }
 }
