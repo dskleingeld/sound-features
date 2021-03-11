@@ -46,6 +46,9 @@ struct Args {
     /// path to an audio file in wav, flac, vorbis or mp3 format
     #[structopt(parse(from_os_str))]
     input: std::path::PathBuf,
+    /// notes per second 
+    #[structopt(name="seconds", short="n", long="per-second", default_value = "4")]
+    notes_second: u32,
 }
 
 #[paw::main]
@@ -55,19 +58,32 @@ fn main(args: Args) {
     let decoder = Decoder::new(reader).unwrap();
     let sample_rate = decoder.sample_rate();
 
-    let bands = [0..1000, 1..2000, 
-        1000..2000, 2000..3000, 
-        3000..4000, 5000..6000];
-    type Builder = band_energy::Builder::<6, 512>;
-    let mut eng = Builder::new(bands, sample_rate)
+    // with the limit in fft window size we can not really handle low frequencies 
+    // use increasing frequency bands as the gap between notes becomes larger as they
+    // become higher
+    let bands = [0..100, 100..200, 
+        200..300, 300..400, 
+        400..500, 500..700,
+        700..900, 900..5000];
+    type Builder = band_energy::Builder::<8, 512>;
+    let mut eng = Builder::new(bands.clone(), sample_rate)
         .build();
 
     let chunks = &decoder.chunks(512);
-    let energies: Vec<_> = chunks.into_iter()
+    let mut energies: Vec<_> = chunks.into_iter()
         .map(|chunk| eng.process(chunk))
         .collect();
 
-    let n = sample_rate/512/2;
+    // normalise energies to bandwidth
+    for energies in &mut energies {
+        for (eng, band) in energies.iter_mut().zip(bands.iter()) { 
+            *eng /= (band.end - band.start) as f32;
+        }
+    }
+
+    // combine energies to get to the requested 
+    // notes per second
+    let n = sample_rate/512/args.notes_second;
     let energies: Vec<_> = energies.chunks(n as usize)
         .map(|c| {
             let mut bands_sum = [0f32; 6];
